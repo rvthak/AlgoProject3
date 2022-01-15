@@ -1,17 +1,25 @@
 
+#python a.py -d ~/Downloads/nasdaq2007_17.csv -n 4
+
+# -------------------------------------------------------------------------------------------------------
+
 # Parameters
-MODEL_LOCATION=''         # Path to a pre-trained stored model
+
 DATASET_LOCATION=''       # Path to the stock proces dataset
-SPLIT_PERCENT = 0.6       # The percentage on which the dataset time series gets split into train and test sets
-TIME_SERIES_AMOUNT = 4    # The amount of time series that will be used to train the model
-MODEL_EXPORT_FILE_PATH='A.model'
+SPLIT_PERCENT = 0.8       # The percentage on which the dataset time series gets split into train and test sets
+TIME_SERIES_AMOUNT = 5    # The amount of time series that will be used to train the model
+SAVE = False               # If 'True', save the models after training 
+LOAD = True              # If 'True', load any saved models
+
+MODEL_SAVE_PATH = r'/home/pigeon/Downloads/PreTrained_Models'
+RET_SEQUENCES_FLAG = True
 
 # Hyperparameters
-EPOCHS = 5
-BATCHSIZE = 10
-WINDOW = 10
-LAYER_SIZE = 50
-RET_SEQUENCES_FLAG = True
+SINGL_EPOCHS = 7
+MULTI_EPOCHS = 5
+BATCHSIZE = 100
+WINDOW = 7
+LAYER_SIZE = 20
 DROPOUT_PERCENT = 0.1
 
 # -------------------------------------------------------------------------------------------------------
@@ -21,45 +29,32 @@ import tensorflow as tf
 import tensorflow.keras as keras
 from tensorflow.keras import layers, optimizers, losses, metrics
 
+import re
+import os
 import sys
 import random
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from argparse import ArgumentParser
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import MinMaxScaler, RobustScaler
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 # -------------------------------------------------------------------------------------------------------
 
 parser = ArgumentParser(prog='read_args')
 parser.add_argument("--dataset_location_arg","-d", type=str, required=True)
 parser.add_argument("--time_series_amount_arg", "-n", type=int, required=True)
-parser.add_argument("--model_location_arg","-m",type=str)
 
 args = parser.parse_args()
 
 DATASET_LOCATION = args.dataset_location_arg
 TIME_SERIES_AMOUNT = args.time_series_amount_arg
 
-if args.model_location_arg is not None:
-    MODEL_LOCATION=args.model_location_arg
-
 # -------------------------------------------------------------------------------------------------------
 
-# Mount the google drive to have access to the files
-# from google.colab import drive
-# drive.mount('/content/gdrive')
-
-#python a.py -d ~/Downloads/nasdaq2007_17.csv -n 4 -m A.model
-
-# Read the input file and create a dataframe
-#Location = r'/content/gdrive/MyDrive/AlgoProject/datasets/nasdaq2007_17.csv'
-#Location = r'/content/gdrive/MyDrive/datasets/nasdaq2007_17.csv'
-#Location = r'c:/Users/giann/Downloads/nasdaq2007_17.csv'
-#Location = r'~/Downloads/nasdaq2007_17.csv'
-Location = DATASET_LOCATION
-
-df=pd.read_csv(Location, sep='\t', header=None, index_col=0)
+# Read the input and load it into a dataframe
+df=pd.read_csv(DATASET_LOCATION, sep='\t', header=None, index_col=0)
 
 # -------------------------------------------------------------------------------------------------------
 
@@ -74,20 +69,18 @@ elif TIME_SERIES_AMOUNT > len(df):
 
 # -------------------------------------------------------------------------------------------------------
 
+print("\n (i) Splitting the dataset")
+
 # Split the dataset into train and test lists
 train_arr = []
 test_arr  = []
 
 for i, item in enumerate(df.iterrows()):
   arr = np.asarray( item[1:][0] )
-  tup = np.split(arr, [ round(arr.size*SPLIT_PERCENT) ])
 
+  tup = np.split(arr,[ round(arr.size*SPLIT_PERCENT) ])
   train_arr.append(tup[0])
   test_arr.append(tup[1])
-
-  # Keep only the requested amount of time series
-  if( i == TIME_SERIES_AMOUNT-1 ):
-    break
 
 # -------------------------------------------------------------------------------------------------------
 
@@ -112,7 +105,7 @@ def windowSet(arr, window):
 # Scale and split each stock time series and store them in lists 
 
 # Used to Normalize the data by scaling it to [0,1]
-sc = MinMaxScaler(feature_range = (0, 1))
+sc = RobustScaler()
 
 train_array_X = []
 train_array_Y = []
@@ -121,6 +114,8 @@ test_array_Y = []
 
 # For every Stock time series in the dataset
 for i in range(len(train_arr) ):
+
+  #sc.fit( np.concatenate( (train_arr[i], test_arr[i])).reshape(-1, 1) )
 
   # Scale the data values to [0,1]
   scaled_train = sc.fit_transform( train_arr[i].reshape(-1, 1) )
@@ -138,18 +133,30 @@ for i in range(len(train_arr) ):
 
 # -------------------------------------------------------------------------------------------------------
 
-# If a pre-trained model was provided => Load and use it
-if MODEL_LOCATION != '':
-  model = keras.models.load_model(MODEL_LOCATION)
+# Returns a list containing the files in the given directory
+def getModels(path):
+  return os.listdir(path)
 
-# Else Create a new model and train it
-else:
+singl_trained_list = getModels(MODEL_SAVE_PATH+'/Single')
+multi_trained_list = getModels(MODEL_SAVE_PATH+'/Multi')
 
-  # Initialize the model
+# -------------------------------------------------------------------------------------------------------
+
+# Load a model from the given file
+def loadModel(file):
+  return keras.models.load_model(file)
+
+# Create, compile and return a model 
+def newModel():
+
+   # Initialize the model
   model = keras.Sequential()
 
   # Build the model
   model.add(layers.LSTM(units = WINDOW, return_sequences=RET_SEQUENCES_FLAG, input_shape=(WINDOW,1) ))
+  model.add(layers.Dropout(DROPOUT_PERCENT))
+
+  model.add(layers.LSTM(units = LAYER_SIZE, return_sequences=RET_SEQUENCES_FLAG))
   model.add(layers.Dropout(DROPOUT_PERCENT))
 
   model.add(layers.LSTM(units = LAYER_SIZE, return_sequences=RET_SEQUENCES_FLAG))
@@ -166,43 +173,150 @@ else:
   # Compile the model
   model.compile(optimizer = 'adam', loss = 'mean_squared_error' )
 
-  # Train the model using each individual Stock time series 
+  return model
+
+# Get '-n' unique random indexes in the given range
+def getRandIndexes(amount, range_end):
+  selected = []
+
+  i=0;
+  while( i < amount):
+    index = random.randint(0, range_end-1)
+    if index not in selected:
+      selected.append(index)
+      i+=1
+
+  return selected
+
+# Get the saved model indexes by removing all non-numerical chars 
+def extractIndexes(fname):
+  return int(re.sub("[^0-9]", "", fname))
+
+# -------------------------------------------------------------------------------------------------------
+indexes = []
+
+# < Single Stock Mode: >
+# Train a single Model per stock and use it to make predictions
+# Train and predict only "-n" amount of stocks
+
+# We start by checking if there are any supported models stored
+singl_trained_model = []
+
+if LOAD and singl_trained_list:
+  print(" (i) Loading Single-Stock pretrained models")
+  # If there are pre-trained models stored => Load them
+  loaded = 0
+  for file in singl_trained_list:
+    singl_trained_model.append( loadModel( MODEL_SAVE_PATH + '/Single/' + file) )
+    loaded+=1
+    if loaded == TIME_SERIES_AMOUNT:
+      break
+else:
+  print(" (i) Creating and Training Single-Stock models")
+  # If there aren't any models stored => Create and train the required amount of models
+
+  # Choose '-n' random indexes
+  indexes = getRandIndexes(TIME_SERIES_AMOUNT, len(train_arr))
+
+  # For each chosen stock
+  for i in indexes:
+    # Create a model
+    model = newModel()
+
+    print("\n (i) Training single-stock model: ", df.index[i], " : ", i)
+
+    # Train it using only the selected random stock
+    model.fit(train_array_X[i], train_array_Y[i], epochs=SINGL_EPOCHS, batch_size=BATCHSIZE)
+
+    # Save the model in a file
+    if SAVE:
+      model.save(MODEL_SAVE_PATH + '/Single' + '/A_' + str(i) + '.model')
+
+    # And store it
+    singl_trained_model.append(model)
+
+# < Multiple Stock Mode: >
+# Train a single model using all the available stock prices
+# Make predictions for "-n" stocks only
+
+# Check if there is a model already stored
+multi_trained_model = []
+
+if LOAD and multi_trained_list:
+  print("\n (i) Loading Multi-Stock pretrained model")
+  multi_trained_model.append( loadModel( MODEL_SAVE_PATH + '/Multi/' + multi_trained_list[0]) )
+else:
+  print("\n (i) Creating and Training Multi-Stock model")
+
+  # Create a model
+  model = newModel()
+
+  all_data   = []
+  all_labels = []
+
+  # Train it using all the available stocks
   for i in range( len(train_array_X) ):
-    print("\n (i) Training using time series: ", df.index[i], " : " , i)
-    model.fit(train_array_X[i], train_array_Y[i], epochs=EPOCHS, batch_size=BATCHSIZE)
+    if i == 0:
+      all_data   = train_array_X[i]
+      all_labels = train_array_Y[i]
+    else:
+      all_data   = np.concatenate( (all_data,   train_array_X[i]))
+      all_labels = np.concatenate( (all_labels, train_array_Y[i]))
 
-  # Save the model
-  model.save(MODEL_EXPORT_FILE_PATH)
+  model.fit(all_data, all_labels, epochs=MULTI_EPOCHS, batch_size=BATCHSIZE)
 
-# -------------------------------------------------------------------------------------------------------
+  # Save the model in a file
+  if SAVE:
+    model.save(MODEL_SAVE_PATH + '/Multi' + '/A.model')
 
-# Choose a random stock to predict
-index = random.randint( 0, len(train_arr)-1 )
-print("\n (i) Making predictions for stock: ", df.index[index], "\n" )
-
-# Make a prediction for its future price
-predicted_stock_price = model.predict( test_array_X[index] )
-
-# Scale the time series values back to their original values
-real = sc.inverse_transform(test_array_Y[index])
-predicted = sc.inverse_transform(predicted_stock_price)
-
-# Plot the result
-title = str(df.index[index]) + " Stock Price Prediction"
-plt.plot(range(1450), real, color = 'red', label = "Real Stock Price")
-plt.plot(range(1450), predicted, color = 'blue', label = "Predicted Stock Price")
-plt.title(title)
-plt.xlabel('Time Units')
-plt.ylabel('Stock Price')
-plt.legend()
-plt.show()
+  multi_trained_model.append(model)
 
 # -------------------------------------------------------------------------------------------------------
 
-print("\n (i) Evaluating Model: ")
+# In case the program loaded pre-trained models => Get their indexes
+if not indexes:
+  loaded = 0
+  for fname in singl_trained_list:
+    indexes.append( extractIndexes(fname) )
+    loaded+=1
+    if loaded == TIME_SERIES_AMOUNT:
+      break
+
+# For each selected stock => Make a prediction using each model
+for i, index in enumerate(indexes):
+  print("\n (i) Making predictions for stock: ", df.index[index])
+
+  # Make predictions
+  single_predicted = singl_trained_model[i].predict( np.concatenate( (train_array_X[index], test_array_X[index]) ))
+  multi_predicted  = multi_trained_model[0].predict( np.concatenate( (train_array_X[index], test_array_X[index]) ))
+  real = np.concatenate( (train_array_Y[index], test_array_Y[index]) )
+
+  # Scale the time series values back to their original values
+  #sc.fit( np.concatenate( (train_arr[index], test_arr[index])).reshape(-1, 1) )
+  sc.fit( train_arr[index].reshape(-1, 1) )
+
+  real   = sc.inverse_transform(real)
+  single = sc.inverse_transform(single_predicted)
+  multi  = sc.inverse_transform(multi_predicted)
+
+  # Plot the result
+  title = str(df.index[index]) + " Stock Price Prediction"
+  plt.plot(range(len(real)), real,   color = 'red'  , label = "Real Stock Price")
+  plt.plot(range(len(single)), single, color = 'green', label = "Single-Predicted Stock Price")
+  plt.plot(range(len(multi)), multi,  color = 'blue' , label = "Multi-Predicted Stock Price")
+  plt.axvline(x=round(arr.size*SPLIT_PERCENT), color = 'pink')
+  plt.title(title)
+  plt.xlabel('Time Units')
+  plt.ylabel('Stock Price')
+  plt.legend()
+  plt.show()
+
+# -------------------------------------------------------------------------------------------------------
+
+print("\n (i) Evaluating Multi-Model: ")
 # Use evaluate() to get the average loss
 average_loss = 0
 for i in range( len(test_array_X) ):
-  average_loss += model.evaluate(test_array_X[i], test_array_Y[i], batch_size=BATCHSIZE)
+  average_loss += multi_trained_model[0].evaluate(test_array_X[i], test_array_Y[i], batch_size=len(test_array_X[i]))
 
 print("\n (i) Average evaluate() loss: ", average_loss/len(test_array_X), "\n" )
