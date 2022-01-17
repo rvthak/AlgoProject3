@@ -1,5 +1,5 @@
 
-#python forecast.py -d nasdaq2007_17.csv -n 5
+#python forecast.py -d nasdaq2007_17.csv -n 6
 
 # -------------------------------------------------------------------------------------------------------
 
@@ -282,9 +282,15 @@ if not indexes:
     if loaded == TIME_SERIES_AMOUNT:
       break
 
+# If the user has requested more single models than are currently loaded => Error
+if LOAD and (len(singl_trained_model) < TIME_SERIES_AMOUNT) :
+  print(" (!) Error: User requested " + str(TIME_SERIES_AMOUNT) + " models, but only " + str(len(singl_trained_model)) + " saved models were found.")
+  print("     Please re-run the program using '-n " + str(len(singl_trained_model)) + "', or train more models")
+  exit()
+
 # For each selected stock => Make a prediction using each model
 for i, index in enumerate(indexes):
-  print("\n (i) Making predictions for stock: ", df.index[index], " : ", index)
+  print("\n (" + str(i+1) + ") Making predictions for stock: ", df.index[index], " : ", index)
 
   # Make predictions
   single_predicted = singl_trained_model[i].predict( np.concatenate( (train_array_X[index], test_array_X[index]) ))
@@ -292,7 +298,6 @@ for i, index in enumerate(indexes):
   real = np.concatenate( (train_array_Y[index], test_array_Y[index]) )
 
   # Scale the time series values back to their original values
-  #sc.fit( np.concatenate( (train_arr[index], test_arr[index])).reshape(-1, 1) )
   sc.fit( train_arr[index].reshape(-1, 1) )
 
   real   = sc.inverse_transform(real)
