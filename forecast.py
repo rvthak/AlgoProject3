@@ -1,5 +1,5 @@
 
-#python forecast.py -d ~/Downloads/nasdaq2007_17.csv -n 4
+#python forecast.py -d nasdaq2007_17.csv -n 5
 
 # -------------------------------------------------------------------------------------------------------
 
@@ -284,7 +284,7 @@ if not indexes:
 
 # For each selected stock => Make a prediction using each model
 for i, index in enumerate(indexes):
-  print("\n (i) Making predictions for stock: ", df.index[index])
+  print("\n (i) Making predictions for stock: ", df.index[index], " : ", index)
 
   # Make predictions
   single_predicted = singl_trained_model[i].predict( np.concatenate( (train_array_X[index], test_array_X[index]) ))

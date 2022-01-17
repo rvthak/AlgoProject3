@@ -1,5 +1,5 @@
 
-# python detect_final.py -d ~/Downloads/nasdaq2007_17.csv -n 5 -mae 7
+# python detect.py -d nasdaq2007_17.csv -n 5 -mae 7
 
 # -------------------------------------------------------------------------------------------------------
 
@@ -10,11 +10,11 @@ SPLIT_PERCENT = 0.8       # The percentage on which the dataset time series gets
 TIME_SERIES_AMOUNT = 10   # The amount of time series that will be used to train the model
 
 MODEL_SAVE_PATH = r'/home/pigeon/Downloads/PreTrained_Models/Anomaly/'
-LOAD = False
+LOAD = True
 SAVE = False
 
 # Hyperparameters
-EPOCHS = 8
+EPOCHS = 5
 BATCHSIZE = 100
 WINDOW = 7
 LAYER_SIZE = 20
@@ -43,14 +43,24 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 # -------------------------------------------------------------------------------------------------------
 parser = ArgumentParser(prog='read_args')
 parser.add_argument("--dataset_location_arg","-d", type=str, required=True)
-parser.add_argument("--time_series_amount_arg", "-n", type=int, required=True)
+parser.add_argument("--time_series_amount_arg", "-n", type=int, required=False)
 parser.add_argument("--mae_arg", "-mae", type=float, required=True)
+parser.add_argument("--query", "-q", type=str, required=False)
 
 args = parser.parse_args()
 
 DATASET_LOCATION = args.dataset_location_arg
-TIME_SERIES_AMOUNT = args.time_series_amount_arg
 THRESHOLD = args.mae_arg
+
+if args.time_series_amount_arg is not None:
+  TIME_SERIES_AMOUNT = args.time_series_amount_arg
+
+if args.query is not None:
+  QUERY = args.query
+
+if args.time_series_amount_arg and args.query:
+  print( " (!) Error: Missing arguments: You need to use either '-n' or '-q'.")
+  exit()
 
 # -------------------------------------------------------------------------------------------------------
 
@@ -177,47 +187,19 @@ def getRandIndexes(amount, range_end):
 
   return selected
 
-# -------------------------------------------------------------------------------------------------------
-# Check if there is a model already stored
-trained_model = []
+# Search the given dataframe for the given name index
+def findIndex(df, name):
+  for i, item in enumerate(df.index):
+    if item == name:
+      return i
+  return -1
 
-if LOAD and trained_list:
-  print(" (i) Loading Multi-Stock pretrained model")
-  trained_model.append( loadModel( MODEL_SAVE_PATH + trained_list[0]) )
-else:
-  print(" (i) Creating and Training Multi-Stock model")
-  # Create a model
-  model = newModel()
 
-  all_data   = []
-  all_labels = []
-
-  # Train it using all the available stocks
-  for i in range( len(train_array_X) ):
-    if i == 0:
-      all_data   = train_array_X[i]
-      all_labels = train_array_Y[i]
-    else:
-      all_data   = np.concatenate( (all_data,   train_array_X[i]))
-      all_labels = np.concatenate( (all_labels, train_array_Y[i]))
-
-  model.fit(all_data, all_labels, epochs=EPOCHS, batch_size=BATCHSIZE)
-  trained_model.append(model)
-
-  if SAVE:
-    # Save it as a file
-    model.save(MODEL_SAVE_PATH + 'B.model')
-
-# -------------------------------------------------------------------------------------------------------
-
-# Choose '-n' random indexes
-indexes = getRandIndexes(TIME_SERIES_AMOUNT, len(train_arr))
-
-for i, index in enumerate(indexes):
-  print("\n (i) Making predictions for stock: ", df.index[index], "\n" )
+def findAnomalies(model, index):
+  print("\n (i) Making predictions for stock: ", df.index[index], " : ", index, "\n" )
 
   # Make a prediction for its future price
-  predicted_stock_price = trained_model[0].predict( test_array_X[index] )
+  predicted_stock_price = model.predict( test_array_X[index] )
   predicted_stock_price = predicted_stock_price.reshape(predicted_stock_price.shape[0],1)
 
   sc.fit( train_arr[index].reshape(-1, 1) )
@@ -259,6 +241,57 @@ for i, index in enumerate(indexes):
   sns.scatterplot(anomalies.index, anomalies.close, color='red', label='anomaly')#anomalies_temp.index
   plt.legend()
   plt.show()
+
+# -------------------------------------------------------------------------------------------------------
+# Check if there is a model already stored
+trained_model = []
+
+if LOAD and trained_list:
+  print(" (i) Loading Multi-Stock pretrained model")
+  trained_model.append( loadModel( MODEL_SAVE_PATH + trained_list[0]) )
+else:
+  print(" (i) Creating and Training Multi-Stock model")
+  # Create a model
+  model = newModel()
+
+  all_data   = []
+  all_labels = []
+
+  # Train it using all the available stocks
+  for i in range( len(train_array_X) ):
+    if i == 0:
+      all_data   = train_array_X[i]
+      all_labels = train_array_Y[i]
+    else:
+      all_data   = np.concatenate( (all_data,   train_array_X[i]))
+      all_labels = np.concatenate( (all_labels, train_array_Y[i]))
+
+  model.fit(all_data, all_labels, epochs=EPOCHS, batch_size=BATCHSIZE)
+  trained_model.append(model)
+
+  if SAVE:
+    # Save it as a file
+    model.save(MODEL_SAVE_PATH + 'B.model')
+
+# -------------------------------------------------------------------------------------------------------
+
+# Make a prediction only for the given query
+if args.query is not None:
+
+  index = findIndex(df, QUERY)
+  if index == -1:
+    print(" (!) Error: The requested stock does not exist in the input file.")
+    exit()
+  else:
+    findAnomalies(trained_model[0], index)
+    exit()
+  
+else:
+  # Choose '-n' random indexes
+  indexes = getRandIndexes(TIME_SERIES_AMOUNT, len(train_arr))
+
+  for index in indexes:
+    findAnomalies(trained_model[0], index)
 
 # -------------------------------------------------------------------------------------------------------
 
