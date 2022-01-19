@@ -9,7 +9,7 @@ DATASET_LOCATION=''       # Path to the stock proces dataset
 SPLIT_PERCENT = 0.8       # The percentage on which the dataset time series gets split into train and test sets
 TIME_SERIES_AMOUNT = 10   # The amount of time series that will be used to train the model
 
-MODEL_SAVE_PATH = r'/home/pigeon/Downloads/PreTrained_Models/Anomaly/'
+MODEL_SAVE_PATH = r'./PreTrained_Models/Anomaly/'
 LOAD = True
 SAVE = False
 

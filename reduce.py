@@ -1,5 +1,5 @@
 
-#python reduce.py -d ./datasets/nasd_input.csv -q ./datasets/nasd_query.csv -od ./datasets/enc_input.csv -oq ./datasets/enc_query.csv
+# python reduce.py -d ./datasets/nasd_input.csv -q ./datasets/nasd_query.csv -od ./datasets/enc_input.csv -oq ./datasets/enc_query.csv
 
 # -------------------------------------------------------------------------------------------------------
 
@@ -12,7 +12,7 @@ ENC_QUERY_LOCATION = '' # Encoded Query dataset Path
 
 SPLIT_PERCENT = 0.8 # The percentage on which the dataset time series gets split into train and test sets
 
-MODEL_SAVE_PATH = r'/home/pigeon/Downloads/PreTrained_Models/Conv/'
+MODEL_SAVE_PATH = r'./PreTrained_Models/Conv/'
 LOAD = True
 SAVE = False
 

@@ -1,5 +1,5 @@
 
-#python forecast.py -d ./datasets/nasdaq2007_17.csv -n 6
+# python forecast.py -d ./datasets/nasdaq2007_17.csv -n 6
 
 # -------------------------------------------------------------------------------------------------------
 
@@ -11,7 +11,7 @@ TIME_SERIES_AMOUNT = 5    # The amount of time series that will be used to train
 LOAD = True               # If 'True', load any saved models
 SAVE = False              # If 'True', save the models after training 
 
-MODEL_SAVE_PATH = r'/home/pigeon/Downloads/PreTrained_Models'
+MODEL_SAVE_PATH = r'./PreTrained_Models'
 RET_SEQUENCES_FLAG = True
 
 # Hyperparameters
