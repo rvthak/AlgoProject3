@@ -8,8 +8,8 @@
 DATASET_LOCATION=''       # Path to the stock proces dataset
 SPLIT_PERCENT = 0.8       # The percentage on which the dataset time series gets split into train and test sets
 TIME_SERIES_AMOUNT = 5    # The amount of time series that will be used to train the model
-SAVE = False               # If 'True', save the models after training 
-LOAD = True              # If 'True', load any saved models
+LOAD = True               # If 'True', load any saved models
+SAVE = False              # If 'True', save the models after training 
 
 MODEL_SAVE_PATH = r'/home/pigeon/Downloads/PreTrained_Models'
 RET_SEQUENCES_FLAG = True

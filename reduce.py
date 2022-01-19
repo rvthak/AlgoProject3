@@ -14,11 +14,11 @@ SPLIT_PERCENT = 0.8 # The percentage on which the dataset time series gets split
 
 MODEL_SAVE_PATH = r'/home/pigeon/Downloads/PreTrained_Models/Conv/'
 LOAD = True
-SAVE = True
+SAVE = False
 
 # Hyperparameters
-EPOCHS = 5
-BATCHSIZE = 10
+EPOCHS = 4
+BATCHSIZE = 100
 WINDOW = 10
 
 # -------------------------------------------------------------------------------------------------------
@@ -35,7 +35,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from argparse import ArgumentParser
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import MinMaxScaler, RobustScaler
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 # -------------------------------------------------------------------------------------------------------
@@ -139,13 +139,11 @@ else:
 
     if not first:
       train_arr = np.concatenate((train_arr, sc.fit_transform(tmp_train)) )
-      test_arr  = np.concatenate(( test_arr, sc.fit_transform(tmp_test )) )
+      test_arr  = np.concatenate(( test_arr, sc.transform(tmp_test )) )
     else:
       train_arr = sc.fit_transform(tmp_train)
-      test_arr  = sc.fit_transform(tmp_test)
+      test_arr  = sc.transform(tmp_test)
       first = False
-
-  print(train_arr.shape)
 
 # -------------------------------------------------------------------------------------------------------
 
@@ -154,18 +152,13 @@ else:
   input_window = layers.Input(shape=(WINDOW,1))
 
   x = layers.Conv1D(16, 3, activation="relu", padding="same")(input_window)
-  #x = BatchNormalization()(x)
   x = layers.MaxPooling1D(2, padding="same")(x)
   x = layers.Conv1D(1, 3, activation="relu", padding="same")(x)
-  #x = BatchNormalization()(x)
   encoder = layers.MaxPooling1D(2, padding="same", name='encoder')(x)
 
-
   x = layers.Conv1D(1, 3, activation="relu", padding="same")(encoder)
-  #x = BatchNormalization()(x)
   x = layers.UpSampling1D(2, name='up1')(x) 
   x = layers.Conv1D(16, 2, activation='relu', name='conv4')(x)
-  #x = BatchNormalization()(x)
   x = layers.UpSampling1D(2, name='up3')(x) # 10 dims
   decoder = layers.Conv1D(1, 4, activation='sigmoid', padding='same', name='output')(x) # 10 dims
 
@@ -173,18 +166,17 @@ else:
   autoencoder = models.Model(input_window, decoder)
   autoencoder.summary()
 
-  autoencoder.compile(optimizer='adam', loss='binary_crossentropy')
+  autoencoder.compile(optimizer='adam', loss='mae')
 
   # Train the model
   autoencoder.fit(train_arr, train_arr, epochs=EPOCHS, batch_size=BATCHSIZE, shuffle=True) # , validation_data=(stock, stock)
 
   # Test the model
-  metric = autoencoder.evaluate(test_arr,test_arr,batch_size=BATCHSIZE)
-  print(metric)
+  autoencoder.evaluate(test_arr,test_arr, batch_size=BATCHSIZE)
 
   # Extract the Encoder from the trained model
   encoder = models.Model(inputs=autoencoder.input, outputs=autoencoder.get_layer('encoder').output)
-  encoder.compile(optimizer='adam', loss='binary_crossentropy')
+  encoder.compile(optimizer='adam', loss='mae')
 
   # Save it as a file
   if SAVE:
