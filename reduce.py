@@ -1,5 +1,5 @@
 
-#python reduce.py -d nasd_input.csv -q nasd_query.csv -od enc_input.csv -oq enc_query.csv
+#python reduce.py -d ./datasets/nasd_input.csv -q ./datasets/nasd_query.csv -od ./datasets/enc_input.csv -oq ./datasets/enc_query.csv
 
 # -------------------------------------------------------------------------------------------------------
 
