@@ -41,6 +41,7 @@ from pandas.plotting import register_matplotlib_converters
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 # -------------------------------------------------------------------------------------------------------
+#Parse the command line arguments using ArgumentParser
 parser = ArgumentParser(prog='read_args')
 parser.add_argument("--dataset_location_arg","-d", type=str, required=True)
 parser.add_argument("--time_series_amount_arg", "-n", type=int, required=False)
@@ -69,7 +70,7 @@ df=pd.read_csv(DATASET_LOCATION, sep='\t', header=None, index_col=0)
 
 # -------------------------------------------------------------------------------------------------------
 
-# Check input arg value
+# Handle error input regarding TIME_SERIES_AMOUNT argument
 if TIME_SERIES_AMOUNT <= 0 :
   print("(!) Fatal error: Illegal 'TIME_SERIES_AMOUNT' value provided.")
   exit()
@@ -88,8 +89,8 @@ for i, item in enumerate(df.iterrows()):
   arr = np.asarray( item[1:][0] )
   tup = np.split(arr, [ round(arr.size*SPLIT_PERCENT) ])
 
-  train_arr.append(tup[0])#olo to dataframe
-  test_arr.append(tup[1])#
+  train_arr.append(tup[0])
+  test_arr.append(tup[1])
 
 # -------------------------------------------------------------------------------------------------------
 
@@ -205,13 +206,13 @@ def findAnomalies(model, index):
   sc.fit( train_arr[index].reshape(-1, 1) )
 
   # Scale the time series values back to their original values
-  real = sc.inverse_transform(test_array_Y[index])#test_array_Y[index]#(test_arr[index])[WINDOW:].reshape(-1,1)
+  real = sc.inverse_transform(test_array_Y[index])
   predicted = sc.inverse_transform(predicted_stock_price)
 
   # Plot the result
   title = str(df.index[index]) + " Stock Price Prediction"
-  plt.plot(range(len(real)), real, color = 'red', label = "Real Stock Price")#range(1450)-first_arg
-  plt.plot(range(len(predicted)), predicted, color = 'blue', label = "Predicted Stock Price")#range(1450)-first_arg
+  plt.plot(range(len(real)), real, color = 'red', label = "Real Stock Price")
+  plt.plot(range(len(predicted)), predicted, color = 'blue', label = "Predicted Stock Price")
   plt.title(title)
   plt.xlabel('Time Units')
   plt.ylabel('Stock Price')
@@ -229,7 +230,7 @@ def findAnomalies(model, index):
   test_score_df['close'] = real[WINDOW:] 
 
   #Plot the result
-  plt.plot(range(len(test_mae_loss)), test_mae_loss, color = 'blue', label = "loss") #range(1440)-first_arg
+  plt.plot(range(len(test_mae_loss)), test_mae_loss, color = 'blue', label = "loss") 
   plt.axhline(y=THRESHOLD, color = 'red', label = "Threshold")
   plt.legend()
   plt.show()
@@ -238,7 +239,7 @@ def findAnomalies(model, index):
   anomalies = test_score_df[test_score_df.anomaly == True]
 
   plt.plot(real, color='blue', label='close price')
-  sns.scatterplot(anomalies.index, anomalies.close, color='red', label='anomaly')#anomalies_temp.index
+  sns.scatterplot(anomalies.index, anomalies.close, color='red', label='anomaly')
   plt.legend()
   plt.show()
 
