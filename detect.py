@@ -59,7 +59,7 @@ if args.time_series_amount_arg is not None:
 if args.query is not None:
   QUERY = args.query
 
-if args.time_series_amount_arg and args.query:
+if args.time_series_amount_arg is None and args.query is None:
   print( " (!) Error: Missing arguments: You need to use either '-n' or '-q'.")
   exit()
 
